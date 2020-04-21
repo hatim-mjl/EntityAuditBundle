@@ -251,6 +251,31 @@ class LogRevisionsListener implements EventSubscriber
         $this->revisionId = null; // reset revision
 
         $processedEntities = array();
+        foreach($this->uow->getIdentityMap() as $object) {
+            $entity = current($object);
+            $changesSet = $this->uow->getEntityChangeSet($entity);
+
+            foreach ($changesSet as $colomn => $possibleDel) {
+                if ($colomn == 'deletedAt') {
+                    $hash = $this->getHash($entity);
+
+                    if (in_array($hash, $processedEntities)) {
+                        continue;
+                    }
+
+                    $processedEntities[] = $hash;
+
+                    $class = $this->em->getClassMetadata(get_class($entity));
+                    if (! $this->metadataFactory->isAudited($class->name)) {
+                        continue;
+                    }
+
+                    $entityData = array_merge($this->getOriginalEntityData($entity), $this->uow->getEntityIdentifier($entity));
+                    $this->saveRevisionEntityData($class, $entityData, 'DEL');
+                }
+
+            }
+        };
 
         foreach ($this->uow->getScheduledEntityDeletions() AS $entity) {
             //doctrine is fine deleting elements multiple times. We are not.
